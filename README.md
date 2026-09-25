@@ -264,6 +264,30 @@ Resultado verificado en local:
 | Broker caído al registrar | Solicitud guardada (Pendiente) + aviso *"no pudo encolarse… MessageId …"* + log `FALLÓ la publicación` |
 | Reenvío de ese MessageId con el broker activo | Confirmado por el broker; aparece la notificación que faltaba |
 
+#### Evidencias (CloudAMQP, 2026-09-25)
+
+Para que SQLite no se reiniciara entre pasos (plan Free de Render, ver P8), la prueba se ejecutó con la **app en local conectada a la instancia real de CloudAMQP** por AMQPS, con el consumidor de Render desactivado durante la prueba para que no compitiera por la cola. La instancia de CloudAMQP es **LavinMQ**, el broker de CloudAMQP compatible con AMQP 0-9-1; la aplicación usa `RabbitMQ.Client` sin ningún cambio. Extracto de logs: [`docs/evidencias/p7-log-consumidor.txt`](docs/evidencias/p7-log-consumidor.txt).
+
+**1. Consumidor desactivado (`RabbitMq__ConsumerEnabled=false`) y solicitud registrada** — `solicitudes.notificaciones` (**D**urable, con *Args* de dead-letter): **Consumers = 0**, **Messages Ready = 1**.
+
+![Mensaje pendiente en CloudAMQP](docs/evidencias/p7-cola-pendiente.png)
+
+**2. Consumidor reactivado** — **Consumers = 1**, **Ready = 0**: la cola se vació (la DLQ sigue en 0).
+
+![Cola vacía tras reactivar el consumidor](docs/evidencias/p7-cola-vacia.png)
+
+**3. Una sola notificación** en *Mis notificaciones* de cliente2 (Solicitud #3, MessageId `4099f267-2ab9-46a3-9c4d-6588928d3bc8`).
+
+![Mis notificaciones con una notificación](docs/evidencias/p7-mis-notificaciones.png)
+
+**4. Reenvío del mismo MessageId** (`/Analista/Reenviar`), confirmado por el broker…
+
+![Reenvío confirmado por el broker](docs/evidencias/p7-reenvio-confirmado.png)
+
+…y **no se duplica**: sigue habiendo **1** notificación. El log del consumidor registra `MessageId=4099f267-… ya fue procesado: ACK sin insertar (sin duplicados)`.
+
+![Sin notificación duplicada tras el reenvío](docs/evidencias/p7-reenvio-sin-duplicado.png)
+
 ### Relación entre las prácticas
 
 WebSocket (P6) comunica al navegador conectado el **resultado de la evaluación**. Cloud MQ (P7) **desacopla el registro** de la solicitud del procesamiento de su notificación de recepción. Cada práctica se demuestra por separado y tiene su propio PR.
