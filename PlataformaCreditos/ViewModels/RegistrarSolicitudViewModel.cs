@@ -18,4 +18,8 @@ public class RegistrarSolicitudViewModel
     public string? MensajeExito { get; set; }
 
     public int? SolicitudCreadaId { get; set; }
+
+    public Guid? MessageId { get; set; }
+
+    public string? AdvertenciaNotificacion { get; set; }
 }

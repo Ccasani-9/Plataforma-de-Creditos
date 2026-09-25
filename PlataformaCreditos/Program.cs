@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http.Connections;
 using PlataformaCreditos.Data;
 using PlataformaCreditos.Hubs;
 using PlataformaCreditos.Infrastructure;
+using PlataformaCreditos.Messaging;
 using PlataformaCreditos.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -67,6 +68,13 @@ builder.Services.AddHealthChecks()
 builder.Services.AddScoped<SolicitudesCache>();
 builder.Services.AddScoped<SolicitudesService>();
 builder.Services.AddScoped<EvaluacionService>();
+builder.Services.AddScoped<NotificacionesService>();
+
+// Cloud MQ (RabbitMQ en CloudAMQP): productor con confirmaciones + consumidor BackgroundService.
+builder.Services.Configure<RabbitMqOptions>(builder.Configuration.GetSection(RabbitMqOptions.Seccion));
+builder.Services.AddSingleton<RabbitMqConexion>();
+builder.Services.AddSingleton<PublicadorSolicitudes>();
+builder.Services.AddHostedService<ConsumidorNotificaciones>();
 
 var app = builder.Build();
 

@@ -1,0 +1,42 @@
+@model ReenvioMensajeViewModel
+@{
+    ViewData["Title"] = "Reenviar mensaje";
+}
+
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <h1 class="h3 mb-3">Reenvío manual a Cloud MQ</h1>
+        <p class="text-muted">
+            Vuelve a publicar <code>SolicitudRegistrada</code> en <code>solicitudes.notificaciones</code> con el <strong>mismo MessageId</strong>.
+            Úsalo cuando una publicación falló o para comprobar que el consumidor no duplica notificaciones.
+            El <code>UsuarioId</code> se obtiene de la base de datos a partir de la solicitud.
+        </p>
+
+        @if (TempData["Exito"] is string exito)
+        {
+            <div class="alert alert-success" role="status">@exito</div>
+        }
+        @if (TempData["Error"] is string error)
+        {
+            <div class="alert alert-danger" role="alert">@error</div>
+        }
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+        <form asp-action="Reenviar" method="post" class="card card-body">
+            <div class="mb-3">
+                <label asp-for="MessageId" class="form-label"></label>
+                <input asp-for="MessageId" class="form-control font-monospace" placeholder="00000000-0000-0000-0000-000000000000" />
+                <span asp-validation-for="MessageId" class="text-danger small"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="SolicitudId" class="form-label"></label>
+                <input asp-for="SolicitudId" type="number" min="1" class="form-control" />
+                <span asp-validation-for="SolicitudId" class="text-danger small"></span>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Reenviar</button>
+                <a asp-action="Index" class="btn btn-outline-secondary">Volver al panel</a>
+            </div>
+        </form>
+    </div>
+</div>

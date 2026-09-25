@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PlataformaCreditos.Data;
 using PlataformaCreditos.Infrastructure;
+using PlataformaCreditos.Messaging;
 using PlataformaCreditos.Models;
 using PlataformaCreditos.ViewModels;
 
@@ -8,10 +9,20 @@ namespace PlataformaCreditos.Services;
 
 public record ResultadoRegistro(bool Exito, string Mensaje, SolicitudCredito? Solicitud = null)
 {
+    /// <summary>MessageId del mensaje SolicitudRegistrada asociado al registro.</summary>
+    public Guid? MessageId { get; init; }
+
+    /// <summary>Aviso cuando la solicitud se guardó pero la notificación no pudo encolarse.</summary>
+    public string? AdvertenciaNotificacion { get; init; }
+
     public static ResultadoRegistro Error(string mensaje) => new(false, mensaje);
 }
 
-public class SolicitudesService(ApplicationDbContext db, SolicitudesCache cache, ILogger<SolicitudesService> logger)
+public class SolicitudesService(
+    ApplicationDbContext db,
+    SolicitudesCache cache,
+    PublicadorSolicitudes publicador,
+    ILogger<SolicitudesService> logger)
 {
     public Task<Cliente?> ObtenerClienteAsync(string usuarioId) =>
         db.Clientes.AsNoTracking().FirstOrDefaultAsync(c => c.UsuarioId == usuarioId);
@@ -115,7 +126,19 @@ public class SolicitudesService(ApplicationDbContext db, SolicitudesCache cache,
 
         logger.LogInformation("Solicitud {SolicitudId} registrada por {UsuarioId} por {Monto}", solicitud.Id, usuarioId, montoSolicitado);
         await cache.InvalidarAsync(usuarioId);
-        return new ResultadoRegistro(true, $"Solicitud #{solicitud.Id} registrada correctamente por {Formato.Soles(montoSolicitado)}. Estado: Pendiente.", solicitud);
+
+        // Solo después de persistir se publica el evento. Si la publicación falla, la solicitud se conserva.
+        var publicacion = await publicador.PublicarAsync(
+            new SolicitudRegistrada(Guid.NewGuid(), solicitud.Id, usuarioId, DateTime.UtcNow));
+
+        return new ResultadoRegistro(true, $"Solicitud #{solicitud.Id} registrada correctamente por {Formato.Soles(montoSolicitado)}. Estado: Pendiente.", solicitud)
+        {
+            MessageId = publicacion.MessageId,
+            AdvertenciaNotificacion = publicacion.Exito
+                ? null
+                : $"La solicitud se guardó, pero la notificación de recepción no pudo encolarse ({publicacion.Error}). " +
+                  $"Referencia para reenvío: MessageId {publicacion.MessageId}."
+        };
     }
 
     /// <summary>Crea el perfil de cliente (activo) para un usuario recién registrado.</summary>

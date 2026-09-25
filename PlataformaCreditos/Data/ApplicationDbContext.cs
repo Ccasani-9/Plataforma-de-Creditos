@@ -14,6 +14,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     public DbSet<SolicitudCredito> SolicitudesCredito => Set<SolicitudCredito>();
 
+    public DbSet<Notificacion> Notificaciones => Set<Notificacion>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -70,6 +72,26 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.HasOne(s => s.Cliente)
                 .WithMany(c => c.Solicitudes)
                 .HasForeignKey(s => s.ClienteId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<Notificacion>(entity =>
+        {
+            entity.ToTable("Notificaciones");
+            entity.Property(n => n.Texto).HasMaxLength(300).IsRequired();
+            entity.Property(n => n.UsuarioId).IsRequired();
+
+            // Idempotencia del consumidor: el mismo MessageId nunca se inserta dos veces.
+            entity.HasIndex(n => n.MessageId).IsUnique();
+            entity.HasIndex(n => new { n.UsuarioId, n.FechaProcesamientoUtc });
+
+            entity.HasOne<SolicitudCredito>()
+                .WithMany()
+                .HasForeignKey(n => n.SolicitudId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<IdentityUser>()
+                .WithMany()
+                .HasForeignKey(n => n.UsuarioId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

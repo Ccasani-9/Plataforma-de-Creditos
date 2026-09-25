@@ -18,6 +18,14 @@
                 <span>@Model.MensajeExito</span>
                 <a asp-action="Detalle" asp-route-id="@Model.SolicitudCreadaId" class="btn btn-sm btn-success">Ver solicitud</a>
             </div>
+            @if (Model.AdvertenciaNotificacion is not null)
+            {
+                <div class="alert alert-warning" role="alert">@Model.AdvertenciaNotificacion</div>
+            }
+            else if (Model.MessageId is not null)
+            {
+                <p class="text-muted small">Notificación encolada en Cloud MQ (MessageId <code>@Model.MessageId</code>). Revisa <a asp-controller="Notificaciones" asp-action="Index">Mis notificaciones</a>.</p>
+            }
         }
 
         <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
