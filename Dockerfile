@@ -23,7 +23,11 @@ ENV ASPNETCORE_ENVIRONMENT=Production \
 USER root
 RUN mkdir -p /var/data
 
+# Script de inicio: expande PORT y arranca la app (ver start.sh).
+COPY start.sh /app/start.sh
+RUN sed -i 's/\r$//' /app/start.sh && chmod +x /app/start.sh
+
 EXPOSE 10000
 
-# ${PORT} NO se expande dentro de una variable de entorno: se expande aquí, en el comando de inicio.
-CMD ["sh", "-c", "export ASPNETCORE_URLS=\"http://0.0.0.0:${PORT:-10000}\" && exec dotnet PlataformaCreditos.dll"]
+# ${PORT} NO se expande dentro de una variable de entorno: se expande en start.sh, el comando de inicio.
+CMD ["sh", "/app/start.sh"]
