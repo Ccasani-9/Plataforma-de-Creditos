@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
+using Microsoft.AspNetCore.Localization;
 using PlataformaCreditos.Data;
+using PlataformaCreditos.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,6 +17,8 @@ builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.Requ
     .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>();
 builder.Services.AddControllersWithViews();
+
+builder.Services.AddScoped<SolicitudesService>();
 
 var app = builder.Build();
 
@@ -32,6 +37,16 @@ else
 }
 
 app.UseHttpsRedirection();
+
+// Cultura fija para que los montos con punto decimal se interpreten igual en cualquier servidor.
+var cultura = new CultureInfo("en-US");
+app.UseRequestLocalization(new RequestLocalizationOptions
+{
+    DefaultRequestCulture = new RequestCulture(cultura),
+    SupportedCultures = [cultura],
+    SupportedUICultures = [cultura]
+});
+
 app.UseRouting();
 
 app.UseAuthentication();

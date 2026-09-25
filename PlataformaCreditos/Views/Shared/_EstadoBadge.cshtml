@@ -1,0 +1,10 @@
+@model EstadoSolicitud
+@{
+    var css = Model switch
+    {
+        EstadoSolicitud.Aprobado => "text-bg-success",
+        EstadoSolicitud.Rechazado => "text-bg-danger",
+        _ => "text-bg-warning"
+    };
+}
+<span class="badge @css" data-estado="@Model">@Model</span>

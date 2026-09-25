@@ -1,0 +1,93 @@
+@model MisSolicitudesViewModel
+@{
+    ViewData["Title"] = "Mis solicitudes";
+    var estados = Enum.GetValues<EstadoSolicitud>()
+        .Select(e => new SelectListItem(e.ToString(), e.ToString(), Model.Filtro.Estado == e));
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Mis solicitudes</h1>
+</div>
+
+@if (!Model.TienePerfilCliente)
+{
+    <div class="alert alert-info">Tu usuario todavía no tiene un perfil de cliente asociado.</div>
+}
+
+<form method="get" asp-action="Index" class="card card-body mb-3" novalidate>
+    <div asp-validation-summary="All" class="alert alert-danger py-2 mb-3" role="alert"></div>
+    <div class="row g-3 align-items-end">
+        <div class="col-md-2">
+            <label asp-for="Filtro.Estado" class="form-label">Estado</label>
+            <select asp-for="Filtro.Estado" asp-items="estados" class="form-select">
+                <option value="">Todos</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label asp-for="Filtro.MontoMin" class="form-label"></label>
+            <input asp-for="Filtro.MontoMin" type="number" step="0.01" class="form-control" />
+        </div>
+        <div class="col-md-2">
+            <label asp-for="Filtro.MontoMax" class="form-label"></label>
+            <input asp-for="Filtro.MontoMax" type="number" step="0.01" class="form-control" />
+        </div>
+        <div class="col-md-2">
+            <label asp-for="Filtro.FechaInicio" class="form-label"></label>
+            <input asp-for="Filtro.FechaInicio" class="form-control" />
+        </div>
+        <div class="col-md-2">
+            <label asp-for="Filtro.FechaFin" class="form-label"></label>
+            <input asp-for="Filtro.FechaFin" class="form-control" />
+        </div>
+        <div class="col-md-2 d-flex gap-2">
+            <button type="submit" class="btn btn-primary flex-fill">Filtrar</button>
+            <a asp-action="Index" class="btn btn-outline-secondary">Limpiar</a>
+        </div>
+    </div>
+</form>
+
+@if (!ViewData.ModelState.IsValid)
+{
+    <p class="text-muted small">Los filtros no se aplicaron porque contienen errores.</p>
+}
+
+<p class="text-muted small mb-2">
+    Mostrando @Model.Solicitudes.Count de @Model.TotalSinFiltrar solicitud(es).
+</p>
+
+@if (Model.Solicitudes.Count == 0)
+{
+    <div class="alert alert-secondary">No hay solicitudes que coincidan con los filtros.</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th class="text-end">Monto solicitado</th>
+                    <th>Fecha de solicitud</th>
+                    <th>Estado</th>
+                    <th>Motivo de rechazo</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var s in Model.Solicitudes)
+                {
+                    <tr data-solicitud-id="@s.Id">
+                        <td>@s.Id</td>
+                        <td class="text-end">@Formato.Soles(s.MontoSolicitado)</td>
+                        <td>@Formato.Fecha(s.FechaSolicitud)</td>
+                        <td data-campo="estado"><partial name="_EstadoBadge" model="s.Estado" /></td>
+                        <td data-campo="motivo">@s.MotivoRechazo</td>
+                        <td class="text-end">
+                            <a asp-action="Detalle" asp-route-id="@s.Id" class="btn btn-sm btn-outline-primary">Ver detalle</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
