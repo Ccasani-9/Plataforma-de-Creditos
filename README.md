@@ -273,11 +273,14 @@ Archivos: [`Dockerfile`](Dockerfile), [`render.yaml`](render.yaml) (Blueprint) y
 
 ### Comando de inicio y PORT
 
-Render inyecta `PORT` en tiempo de ejecución. `${PORT}` **no** se expande dentro del valor de otra variable de entorno, por eso se expande en el comando de inicio (Dockerfile `CMD` y `dockerCommand` del Blueprint):
+Render inyecta `PORT` en tiempo de ejecución. `${PORT}` **no** se expande dentro del valor de otra variable de entorno, por eso se expande en el **comando de inicio** [`start.sh`](start.sh), que usan tanto el `CMD` del Dockerfile como el `dockerCommand: sh /app/start.sh` del Blueprint:
 
 ```sh
-sh -c 'export ASPNETCORE_URLS="http://0.0.0.0:${PORT}" && exec dotnet PlataformaCreditos.dll'
+export ASPNETCORE_URLS="http://0.0.0.0:${PORT:-10000}"
+exec dotnet /app/PlataformaCreditos.dll
 ```
+
+> Render no interpreta comillas en `dockerCommand` (un `sh -c '...'` falla con *not found*, código 127), por eso la lógica vive en el script.
 
 ### HTTPS / WSS detrás del proxy
 

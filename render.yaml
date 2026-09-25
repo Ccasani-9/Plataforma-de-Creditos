@@ -5,8 +5,9 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    # Comando de inicio: expande PORT y lo asigna a ASPNETCORE_URLS antes de arrancar.
-    dockerCommand: sh -c 'export ASPNETCORE_URLS="http://0.0.0.0:${PORT}" && exec dotnet PlataformaCreditos.dll'
+    # Comando de inicio: start.sh expande PORT y lo asigna a ASPNETCORE_URLS antes de arrancar.
+    # (Render no interpreta comillas en dockerCommand, por eso la lógica está en el script.)
+    dockerCommand: sh /app/start.sh
     plan: free
     # Una sola instancia: SQLite local + consumidor RabbitMQ (BackgroundService) dentro del mismo proceso.
     numInstances: 1
