@@ -170,6 +170,26 @@ Las validaciones y la autorización del panel Analista no cambian.
 
 Verificado en local con el cliente oficial `@microsoft/signalr`: cliente1 recibió `{"solicitudId":1,"estado":"Aprobado","motivoRechazo":null}`, cliente2 no recibió nada y el anónimo fue rechazado (`negotiate` y upgrade WebSocket → 401).
 
+#### Evidencias (Render, 2026-09-25)
+
+Capturas tomadas sobre `https://plataforma-creditos-id19.onrender.com` con tres navegadores independientes (cliente1, cliente2 y analista).
+
+**1. Conexión WebSocket segura** — DevTools → Network → Socket: `wss://plataforma-creditos-id19.onrender.com/hubs/solicitudes` con **101 Switching Protocols**; badge *Tiempo real: conectado*.
+
+![Conexión WebSocket en DevTools](docs/evidencias/p6-websocket-devtools.png)
+
+**2. Evento recibido por el propietario sin recargar** — el analista aprobó la solicitud #1; en la sesión de cliente1 el estado pasó a **Aprobado** y llegó el frame `{"type":1,"target":"SolicitudEstadoActualizado","arguments":[{"solicitudId":1,"estado":"Aprobado","motivoRechazo":null}]}`.
+
+![Evento SolicitudEstadoActualizado recibido](docs/evidencias/p6-evento-recibido.png)
+
+**3. Un segundo cliente no recibe el evento** — cliente2 conectado durante la aprobación: tras el handshake y `ObtenerEstadoActual` (que solo devuelve **su** solicitud #2) únicamente llegan pings `{"type":6}`; ningún `SolicitudEstadoActualizado`.
+
+![Cliente2 no recibe el evento](docs/evidencias/p6-cliente2-no-recibe.png)
+
+**4. Conexión anónima rechazada** — ventana privada sin sesión → `/hubs/solicitudes` → **HTTP ERROR 401**.
+
+![Conexión anónima rechazada con 401](docs/evidencias/p6-anonimo-401.png)
+
 ### Mensajería asíncrona con Cloud MQ (Pregunta 7)
 
 Productor → cola → consumidor que genera la notificación de recepción de la solicitud (RabbitMQ gestionado en **CloudAMQP**).
