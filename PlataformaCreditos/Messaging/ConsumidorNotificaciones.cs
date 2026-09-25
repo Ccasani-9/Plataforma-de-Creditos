@@ -56,7 +56,8 @@ public class ConsumidorNotificaciones(
 
     private async Task ConsumirAsync(CancellationToken stoppingToken)
     {
-        var conn = await conexion.ObtenerAsync(stoppingToken);
+        // Conexión dedicada: el productor puede recrear la suya sin cerrar el canal del consumidor.
+        await using var conn = await conexion.CrearConexionAsync("consumidor", stoppingToken);
         await using var canal = await conn.CreateChannelAsync(cancellationToken: stoppingToken);
         await conexion.DeclararColasAsync(canal, stoppingToken);
         await canal.BasicQosAsync(prefetchSize: 0, prefetchCount: 1, global: false, stoppingToken);

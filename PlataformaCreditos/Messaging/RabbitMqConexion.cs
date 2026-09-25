@@ -4,8 +4,10 @@ using RabbitMQ.Client;
 namespace PlataformaCreditos.Messaging;
 
 /// <summary>
-/// Conexión única (y perezosa) al broker, compartida por el productor y el consumidor.
-/// Cada uno abre sus propios canales. Usa recuperación automática ante cortes de red.
+/// Conexiones al broker con recuperación automática ante cortes de red.
+/// El productor usa una conexión compartida y perezosa (<see cref="ObtenerAsync"/>); el consumidor
+/// abre la suya propia (<see cref="CrearConexionAsync"/>) para que reemplazar la conexión del
+/// productor nunca cierre el canal del consumidor.
 /// </summary>
 public sealed class RabbitMqConexion(IOptions<RabbitMqOptions> opciones, IHostEnvironment env, ILogger<RabbitMqConexion> logger)
     : IAsyncDisposable
@@ -16,6 +18,7 @@ public sealed class RabbitMqConexion(IOptions<RabbitMqOptions> opciones, IHostEn
 
     public RabbitMqOptions Opciones => _opciones;
 
+    /// <summary>Conexión compartida del productor (se recrea si quedó cerrada).</summary>
     public async Task<IConnection> ObtenerAsync(CancellationToken ct = default)
     {
         if (_conexion is { IsOpen: true })
@@ -31,33 +34,41 @@ public sealed class RabbitMqConexion(IOptions<RabbitMqOptions> opciones, IHostEn
                 return _conexion;
             }
 
-            if (!_opciones.Configurado)
-            {
-                throw new InvalidOperationException("RabbitMq__ConnectionString no está configurada.");
-            }
-
-            var factory = new ConnectionFactory
-            {
-                Uri = ObtenerUri(),
-                AutomaticRecoveryEnabled = true,
-                TopologyRecoveryEnabled = true,
-                NetworkRecoveryInterval = TimeSpan.FromSeconds(10),
-                ClientProvidedName = $"PlataformaCreditos ({env.EnvironmentName})"
-            };
-
             if (_conexion is not null)
             {
                 await _conexion.DisposeAsync();
             }
 
-            _conexion = await factory.CreateConnectionAsync(ct);
-            logger.LogInformation("Conectado a RabbitMQ {Host} ({Protocolo})", factory.HostName, factory.Ssl.Enabled ? "AMQPS/TLS" : "AMQP");
+            _conexion = await CrearConexionAsync("publicador", ct);
             return _conexion;
         }
         finally
         {
             _candado.Release();
         }
+    }
+
+    /// <summary>Abre una conexión nueva e independiente; quien la crea es responsable de liberarla.</summary>
+    public async Task<IConnection> CrearConexionAsync(string rol, CancellationToken ct = default)
+    {
+        if (!_opciones.Configurado)
+        {
+            throw new InvalidOperationException("RabbitMq__ConnectionString no está configurada.");
+        }
+
+        var factory = new ConnectionFactory
+        {
+            Uri = ObtenerUri(),
+            AutomaticRecoveryEnabled = true,
+            TopologyRecoveryEnabled = true,
+            NetworkRecoveryInterval = TimeSpan.FromSeconds(10),
+            ClientProvidedName = $"PlataformaCreditos {rol} ({env.EnvironmentName})"
+        };
+
+        var conexion = await factory.CreateConnectionAsync(ct);
+        logger.LogInformation("Conectado a RabbitMQ {Host} ({Protocolo}) como {Rol}",
+            factory.HostName, factory.Ssl.Enabled ? "AMQPS/TLS" : "AMQP", rol);
+        return conexion;
     }
 
     /// <summary>Declara la cola durable y su cola de mensajes fallidos (idempotente).</summary>
