@@ -1,6 +1,6 @@
 # Evidencias
 
-Capturas que acompañan las pruebas descritas en el README principal.
+Capturas que acompañan las pruebas descritas en el README principal (tomadas el 2026-09-25).
 
 | Archivo | Pregunta | Qué debe mostrar |
 |---|---|---|
