@@ -2,6 +2,8 @@
 
 Plataforma web interna para gestionar solicitudes de crédito — Examen Parcial 2026-1.
 
+**URL en Render:** _pendiente de publicar_
+
 **Stack:** ASP.NET Core MVC (.NET 10) + Identity · EF Core + SQLite · Razor Views · Redis (sesión y caché)
 
 ## Requisitos locales
@@ -110,12 +112,56 @@ Comprobar en Redis: `docker exec pc-redis redis-cli --scan` → `PlataformaCredi
 
 ## Variables de entorno
 
-| Variable | Ejemplo | Descripción |
+| Variable | Valor en Render | Descripción |
 |---|---|---|
-| `ConnectionStrings__DefaultConnection` | `Data Source=app.db` | Ruta del archivo SQLite |
+| `ASPNETCORE_ENVIRONMENT` | `Production` | Entorno |
+| `ASPNETCORE_URLS` | `http://0.0.0.0:${PORT}` | Referencia; el **comando de inicio** la sobrescribe con el `PORT` real (ver abajo) |
+| `ConnectionStrings__DefaultConnection` | `Data Source=/var/data/plataforma-creditos.db` | Archivo SQLite |
 | `Redis__ConnectionString` | `redis://default:<clave>@<host>:<puerto>` | Redis Cloud (sesión, caché, Data Protection) |
+| `RabbitMq__ConnectionString` | `amqps://<usuario>:<clave>@<host>/<vhost>` | URI AMQPS de CloudAMQP |
+| `RabbitMq__QueueName` | `solicitudes.notificaciones` | Cola durable |
+| `RabbitMq__ConsumerEnabled` | `true` | Activa el consumidor (`BackgroundService`) |
 
 > Nunca se suben credenciales al repositorio: en local se usan `appsettings.Development.json` (solo `localhost`) o *user-secrets*; en Render, variables de entorno.
+
+## Despliegue en Render (Pregunta 8)
+
+Archivos: [`Dockerfile`](Dockerfile), [`render.yaml`](render.yaml) (Blueprint) y [`.dockerignore`](.dockerignore).
+
+### Pasos
+
+1. En Render: **New → Blueprint** → elegir este repositorio → Render lee `render.yaml`.
+   (Alternativa manual: **New → Web Service** → repositorio → *Language: Docker*, *Instance type: Free*, rama `main`).
+2. Completar las variables marcadas como secretas (`Redis__ConnectionString`, `RabbitMq__ConnectionString`). Las demás ya vienen en el Blueprint.
+3. **Deploy**. Cada merge a `main` redespliega automáticamente (`autoDeploy: true`).
+4. Verificar `https://<servicio>.onrender.com/healthz` → `Healthy`.
+
+### Comando de inicio y PORT
+
+Render inyecta `PORT` en tiempo de ejecución. `${PORT}` **no** se expande dentro del valor de otra variable de entorno, por eso se expande en el comando de inicio (Dockerfile `CMD` y `dockerCommand` del Blueprint):
+
+```sh
+sh -c 'export ASPNETCORE_URLS="http://0.0.0.0:${PORT}" && exec dotnet PlataformaCreditos.dll'
+```
+
+### HTTPS / WSS detrás del proxy
+
+Render termina TLS en su proxy. `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` (en el Dockerfile) hace que la app respete `X-Forwarded-Proto`, de modo que las cookies seguras, las redirecciones y el WebSocket (`wss://`) funcionen correctamente.
+
+### Persistencia de SQLite
+
+- Las migraciones se aplican y los datos iniciales se siembran **al arrancar** (idempotente).
+- **Plan Free (configuración actual):** el sistema de archivos es efímero, así que en cada despliegue o reinicio SQLite se recrea y se vuelve a sembrar con los usuarios demo. Las sesiones y el login **no** se pierden porque las llaves de Data Protection están en Redis.
+- **Para conservar SQLite** entre despliegues y reinicios: plan `starter` + disco persistente montado en `/var/data` (bloque `disk` comentado en `render.yaml`). Como `ConnectionStrings__DefaultConnection` apunta a `/var/data/plataforma-creditos.db`, el archivo queda en el disco y sobrevive a despliegues y reinicios.
+- Se ejecuta **una sola instancia** (`numInstances: 1`): SQLite es un archivo local y el consumidor de RabbitMQ corre como `BackgroundService` dentro del mismo proceso.
+- En el plan Free el servicio se suspende tras ~15 min sin tráfico; al despertar, el consumidor procesa los mensajes que quedaron en la cola durable.
+
+### Probar la imagen en local
+
+```bash
+docker build -t plataforma-creditos .
+docker run -p 8080:10000 -e PORT=10000 -e Redis__ConnectionString=host.docker.internal:6379 plataforma-creditos
+```
 
 ## Flujo de trabajo Git
 
@@ -127,3 +173,4 @@ Cada pregunta se desarrolla en su propia rama creada desde `main` actualizado y 
 | 2. Catálogo de solicitudes y filtros | `feature/catalogo-solicitudes` |
 | 3. Registro y validaciones de solicitud | `feature/solicitudes` |
 | 4. Sesiones y Redis | `feature/sesion-redis` |
+| 8. Despliegue en Render | `deploy/render` |

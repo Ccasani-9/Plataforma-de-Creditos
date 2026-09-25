@@ -30,6 +30,9 @@ builder.Services.AddSession(options =>
     options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
 });
 
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<ApplicationDbContext>("sqlite");
+
 builder.Services.AddScoped<SolicitudesCache>();
 builder.Services.AddScoped<SolicitudesService>();
 
@@ -65,6 +68,8 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseSession();
+
+app.MapHealthChecks("/healthz");
 
 app.MapStaticAssets();
 

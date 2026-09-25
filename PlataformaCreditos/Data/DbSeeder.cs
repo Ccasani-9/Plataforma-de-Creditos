@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using PlataformaCreditos.Models;
 
@@ -27,6 +28,7 @@ public static class DbSeeder
         var userManager = provider.GetRequiredService<UserManager<IdentityUser>>();
         var roleManager = provider.GetRequiredService<RoleManager<IdentityRole>>();
 
+        AsegurarDirectorioSqlite(db.Database.GetConnectionString(), logger);
         await db.Database.MigrateAsync();
 
         if (!await roleManager.RoleExistsAsync(Roles.Analista))
@@ -73,6 +75,18 @@ public static class DbSeeder
 
         await db.SaveChangesAsync();
         logger.LogInformation("Datos iniciales cargados: 3 clientes, 2 solicitudes y usuario Analista.");
+    }
+
+    /// <summary>Crea la carpeta del archivo SQLite (p. ej. el disco persistente /var/data en Render).</summary>
+    private static void AsegurarDirectorioSqlite(string? connectionString, ILogger logger)
+    {
+        var dataSource = new SqliteConnectionStringBuilder(connectionString).DataSource;
+        var directorio = Path.GetDirectoryName(Path.GetFullPath(dataSource));
+        if (!string.IsNullOrEmpty(directorio) && !Directory.Exists(directorio))
+        {
+            Directory.CreateDirectory(directorio);
+        }
+        logger.LogInformation("Base de datos SQLite: {Ruta}", Path.GetFullPath(dataSource));
     }
 
     private static async Task<IdentityUser> AsegurarUsuarioAsync(UserManager<IdentityUser> userManager, string email)
