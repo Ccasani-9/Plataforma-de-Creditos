@@ -36,6 +36,10 @@ public class SolicitudesService(ApplicationDbContext db, SolicitudesCache cache,
         return (solicitudes, false);
     }
 
+    /// <summary>Estado vigente leído directamente de la base de datos (sin caché), p. ej. al reconectar el WebSocket.</summary>
+    public Task<IReadOnlyList<SolicitudResumen>> ObtenerEstadosVigentesAsync(string usuarioId) =>
+        ConsultarMisSolicitudesAsync(usuarioId);
+
     private async Task<IReadOnlyList<SolicitudResumen>> ConsultarMisSolicitudesAsync(string usuarioId)
     {
         return await db.SolicitudesCredito

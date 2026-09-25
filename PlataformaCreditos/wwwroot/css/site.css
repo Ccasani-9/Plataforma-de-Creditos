@@ -33,3 +33,13 @@ body {
 .validation-summary-valid {
   display: none;
 }
+
+/* Resalta una solicitud actualizada en tiempo real */
+.fila-actualizada {
+  animation: resaltar 3s ease-out;
+}
+
+@keyframes resaltar {
+  from { background-color: #fff3cd; }
+  to { background-color: transparent; }
+}
