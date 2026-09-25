@@ -12,7 +12,9 @@
 
 <div class="card" data-solicitud-id="@Model.Id">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <h1 class="h4 mb-0">Solicitud de crédito #@Model.Id</h1>
+        <h1 class="h4 mb-0">Solicitud de crédito #@Model.Id
+            <span id="estado-conexion" class="badge text-bg-secondary fs-6 align-middle">Conectando…</span>
+        </h1>
         <span data-campo="estado"><partial name="_EstadoBadge" model="Model.Estado" /></span>
     </div>
     <div class="card-body">
@@ -27,7 +29,7 @@
             <dd class="col-sm-8" data-campo="estado-texto">@Model.Estado</dd>
 
             <dt class="col-sm-4">Motivo de rechazo</dt>
-            <dd class="col-sm-8" data-campo="motivo">@(Model.MotivoRechazo ?? "—")</dd>
+            <dd class="col-sm-8" data-campo="motivo" data-vacio="—">@(Model.MotivoRechazo ?? "—")</dd>
 
             <dt class="col-sm-4">Ingresos mensuales declarados</dt>
             <dd class="col-sm-8">@Formato.Soles(Model.Cliente!.IngresosMensuales)</dd>
@@ -41,3 +43,9 @@
 </div>
 
 <a asp-action="Index" class="btn btn-link mt-3 px-0">&larr; Volver a mis solicitudes</a>
+
+<partial name="_TiempoReal" />
+
+@section Scripts {
+    <partial name="_TiempoRealScripts" />
+}

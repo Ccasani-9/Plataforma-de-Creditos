@@ -4,7 +4,7 @@ Plataforma web interna para gestionar solicitudes de crédito — Examen Parcial
 
 **URL en Render:** _pendiente de publicar_
 
-**Stack:** ASP.NET Core MVC (.NET 10) + Identity · EF Core + SQLite · Razor Views · Redis (sesión y caché)
+**Stack:** ASP.NET Core MVC (.NET 10) + Identity · EF Core + SQLite · Razor Views · Redis (sesión y caché) · WebSocket (SignalR)
 
 ## Requisitos locales
 
@@ -130,6 +130,40 @@ Comprobar en Redis: `docker exec pc-redis redis-cli --scan` → `PlataformaCredi
 | Analista rechaza una solicitud ya rechazada | Error: ya fue procesada |
 | Analista aprueba 12 000 con ingresos de 3 000 | Éxito; el listado del cliente refleja el cambio de inmediato (caché invalidada) |
 
+### Notificaciones en tiempo real con WebSocket (Pregunta 6)
+
+> El enunciado pide un *Hub de ASP.NET en `/hubs/solicitudes` protegido con Identity*. Se implementa con **ASP.NET Core SignalR** (el Hub de ASP.NET) restringido al transporte **WebSocket**. Un servicio externo como PieSocket no puede alojar un Hub en el servidor de la app ni validar la cookie de Identity para elegir al destinatario, que son requisitos explícitos.
+
+| Requisito | Implementación |
+|---|---|
+| Hub en `/hubs/solicitudes` protegido con Identity | `Hubs/SolicitudesHub.cs` con `[Authorize]`; `MapHub(..., Transports = WebSockets)` |
+| Transporte WebSocket | Servidor: solo `HttpTransportType.WebSockets`. Cliente: `transport: WebSockets, skipNegotiation: true` |
+| Conexión anónima rechazada | `401 Unauthorized` (las rutas `/hubs` no redirigen al login) |
+| Evento `SolicitudEstadoActualizado` (`SolicitudId`, `Estado`, `MotivoRechazo`) solo al propietario | `NotificadorSolicitudes` → `Clients.User(Cliente.UsuarioId)`; el destinatario sale de la base de datos, nunca del navegador |
+| Orden: BD → caché → evento | `EvaluacionService`: `SaveChanges` → `SolicitudesCache.InvalidarAsync` → `NotificarEstadoAsync` |
+| Vistas conectadas | "Mis solicitudes" y "Detalle" (`wwwroot/js/solicitudes-tiempo-real.js`): actualizan el badge y el motivo y muestran un aviso (toast) sin recargar |
+| Estado de conexión y reconexión | Badge *Conectando / conectado / Reconectando / Desconectado*; `withAutomaticReconnect` + reintento cada 10 s |
+| Recuperar cambios tras desconexión | Al (re)conectar se invoca `ObtenerEstadoActual()` (lee la BD con la identidad del servidor) y se aplican las diferencias |
+
+Las validaciones y la autorización del panel Analista no cambian.
+
+#### Prueba y evidencias
+
+1. Abrir **dos navegadores o ventanas de incógnito independientes**:
+   - A: `cliente1@creditos.pe` → *Mis solicitudes* (badge **Tiempo real: conectado**).
+   - B: `analista@creditos.pe` → *Panel Analista*.
+2. En A: **F12 → Network → filtro "WS"** → recargar → aparece `solicitudes` con estado **101 Switching Protocols** (en Render: `wss://…/hubs/solicitudes`). En la pestaña *Messages* se ven los frames. 📸 `docs/evidencias/p6-websocket-devtools.png`
+3. En B: aprobar o rechazar la solicitud Pendiente de cliente1 → en A el estado cambia al instante y aparece el aviso, **sin recargar**. 📸 `p6-evento-recibido.png`
+4. Con una tercera ventana como `cliente2@creditos.pe` en *Mis solicitudes*: **no** recibe el evento (sin aviso; en DevTools no llega ningún frame `SolicitudEstadoActualizado`). 📸 `p6-cliente2-no-recibe.png`
+5. Conexión anónima (sin cookie) → **401**:
+   ```bash
+   curl -i -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13"         -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" https://<servicio>.onrender.com/hubs/solicitudes
+   ```
+   📸 `p6-anonimo-401.png`
+6. Reconexión: en A, DevTools → Network → **Offline** (badge *Reconectando…*); aprobar/rechazar desde B; volver a **No throttling** → A reconecta, consulta el estado vigente y muestra **"Cambios recuperados"**.
+
+Verificado en local con el cliente oficial `@microsoft/signalr`: cliente1 recibió `{"solicitudId":1,"estado":"Aprobado","motivoRechazo":null}`, cliente2 no recibió nada y el anónimo fue rechazado (`negotiate` y upgrade WebSocket → 401).
+
 ## Variables de entorno
 
 | Variable | Valor en Render | Descripción |
@@ -194,4 +228,5 @@ Cada pregunta se desarrolla en su propia rama creada desde `main` actualizado y 
 | 3. Registro y validaciones de solicitud | `feature/solicitudes` |
 | 4. Sesiones y Redis | `feature/sesion-redis` |
 | 5. Panel de Analista (rol) | `feature/panel-analista` |
+| 6. Notificaciones con WebSocket | `feature/websocket-notificaciones` |
 | 8. Despliegue en Render | `deploy/render` |

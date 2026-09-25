@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PlataformaCreditos.Data;
+using PlataformaCreditos.Hubs;
 using PlataformaCreditos.Models;
 using PlataformaCreditos.ViewModels;
 
@@ -11,7 +12,11 @@ public record ResultadoEvaluacion(bool Exito, string Mensaje, SolicitudCredito? 
 }
 
 /// <summary>Evaluación de solicitudes por parte del rol Analista.</summary>
-public class EvaluacionService(ApplicationDbContext db, SolicitudesCache cache, ILogger<EvaluacionService> logger)
+public class EvaluacionService(
+    ApplicationDbContext db,
+    SolicitudesCache cache,
+    NotificadorSolicitudes notificador,
+    ILogger<EvaluacionService> logger)
 {
     public async Task<IReadOnlyList<SolicitudPendienteViewModel>> ObtenerPendientesAsync()
     {
@@ -45,7 +50,8 @@ public class EvaluacionService(ApplicationDbContext db, SolicitudesCache cache, 
 
     /// <summary>
     /// 1) Aplica la regla de dominio, 2) guarda en la base de datos (con control de concurrencia
-    /// sobre Estado) y 3) invalida la caché Redis del propietario.
+    /// sobre Estado), 3) invalida la caché Redis del propietario y 4) solo entonces emite el
+    /// evento WebSocket SolicitudEstadoActualizado al propietario.
     /// </summary>
     private async Task<ResultadoEvaluacion> ProcesarAsync(int solicitudId, Action<SolicitudCredito> accion, string verbo)
     {
@@ -81,6 +87,9 @@ public class EvaluacionService(ApplicationDbContext db, SolicitudesCache cache, 
         var propietarioId = solicitud.Cliente!.UsuarioId;
         await cache.InvalidarAsync(propietarioId);
         logger.LogInformation("Solicitud {SolicitudId} {Verbo} (propietario {UsuarioId})", solicitud.Id, verbo, propietarioId);
+
+        // El destinatario sale de la base de datos (Cliente.UsuarioId), nunca del navegador.
+        await notificador.NotificarEstadoAsync(propietarioId, solicitud);
 
         return new ResultadoEvaluacion(true, $"Solicitud #{solicitud.Id} {verbo} correctamente.", solicitud, propietarioId);
     }

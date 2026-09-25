@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
 using Microsoft.AspNetCore.Localization;
+using Microsoft.AspNetCore.Http.Connections;
 using PlataformaCreditos.Data;
+using PlataformaCreditos.Hubs;
 using PlataformaCreditos.Infrastructure;
 using PlataformaCreditos.Services;
 
@@ -18,6 +20,35 @@ builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.Requ
     .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>();
 builder.Services.AddControllersWithViews();
+
+// Las rutas del Hub responden 401/403 (no redirigen al login), así una conexión anónima se rechaza limpiamente.
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.Events.OnRedirectToLogin = context =>
+    {
+        if (context.Request.Path.StartsWithSegments("/hubs"))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return Task.CompletedTask;
+        }
+        context.Response.Redirect(context.RedirectUri);
+        return Task.CompletedTask;
+    };
+    options.Events.OnRedirectToAccessDenied = context =>
+    {
+        if (context.Request.Path.StartsWithSegments("/hubs"))
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return Task.CompletedTask;
+        }
+        context.Response.Redirect(context.RedirectUri);
+        return Task.CompletedTask;
+    };
+});
+
+// WebSocket en tiempo real (ASP.NET Core SignalR).
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<NotificadorSolicitudes>();
 
 // Redis: caché distribuida (listado de solicitudes), sesión y llaves de Data Protection.
 builder.Services.AddRedisInfraestructura(builder.Configuration, builder.Environment);
@@ -71,6 +102,9 @@ app.UseAuthorization();
 app.UseSession();
 
 app.MapHealthChecks("/healthz");
+
+// Hub protegido con Identity ([Authorize] en la clase) y restringido al transporte WebSocket.
+app.MapHub<SolicitudesHub>(SolicitudesHub.Ruta, options => options.Transports = HttpTransportType.WebSockets);
 
 app.MapStaticAssets();
 
