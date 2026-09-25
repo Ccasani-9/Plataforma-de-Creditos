@@ -1,0 +1,43 @@
+@model SolicitudCredito
+@{
+    ViewData["Title"] = $"Solicitud #{Model.Id}";
+}
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a asp-action="Index">Mis solicitudes</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Solicitud #@Model.Id</li>
+    </ol>
+</nav>
+
+<div class="card" data-solicitud-id="@Model.Id">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h1 class="h4 mb-0">Solicitud de crédito #@Model.Id</h1>
+        <span data-campo="estado"><partial name="_EstadoBadge" model="Model.Estado" /></span>
+    </div>
+    <div class="card-body">
+        <dl class="row mb-0">
+            <dt class="col-sm-4">Monto solicitado</dt>
+            <dd class="col-sm-8">@Formato.Soles(Model.MontoSolicitado)</dd>
+
+            <dt class="col-sm-4">Fecha de solicitud</dt>
+            <dd class="col-sm-8">@Formato.Fecha(Model.FechaSolicitud) (hora de Lima)</dd>
+
+            <dt class="col-sm-4">Estado</dt>
+            <dd class="col-sm-8" data-campo="estado-texto">@Model.Estado</dd>
+
+            <dt class="col-sm-4">Motivo de rechazo</dt>
+            <dd class="col-sm-8" data-campo="motivo">@(Model.MotivoRechazo ?? "—")</dd>
+
+            <dt class="col-sm-4">Ingresos mensuales declarados</dt>
+            <dd class="col-sm-8">@Formato.Soles(Model.Cliente!.IngresosMensuales)</dd>
+
+            <dt class="col-sm-4">Relación monto / ingresos</dt>
+            <dd class="col-sm-8">@((Model.MontoSolicitado / Model.Cliente.IngresosMensuales).ToString("0.##"))x
+                <span class="text-muted small">(máximo aprobable: @ReglasCredito.MultiploMaximoAprobacion x = @Formato.Soles(Model.Cliente.MontoMaximoAprobable))</span>
+            </dd>
+        </dl>
+    </div>
+</div>
+
+<a asp-action="Index" class="btn btn-link mt-3 px-0">&larr; Volver a mis solicitudes</a>

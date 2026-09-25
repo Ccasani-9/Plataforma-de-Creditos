@@ -60,6 +60,18 @@ Contraseña de todos los usuarios demo: **`Demo123!`**
 | `cliente2@creditos.pe` | Cliente activo | 5 000 | 20 000 **Aprobado** |
 | `cliente3@creditos.pe` | Cliente **inactivo** | 2 500 | — |
 
+## Funcionalidades
+
+### Mis solicitudes (Pregunta 2)
+
+- `GET /Solicitudes` — listado de las solicitudes del usuario autenticado (`[Authorize]`).
+- Filtros: **Estado**, **rango de monto** (mín./máx.) y **rango de fechas** (desde/hasta, hora de Lima, inclusivos).
+- `GET /Solicitudes/Detalle/{id}` — detalle completo (monto, fecha, estado, motivo, ingresos, relación monto/ingresos). Si la solicitud es de otro usuario responde **404**.
+- Validaciones **server-side** (`FiltroSolicitudesViewModel : IValidatableObject`):
+  - montos negativos → error; mínimo > máximo → error;
+  - fecha inicio > fecha fin → error.
+  - Si los filtros son inválidos no se aplican y se muestran los mensajes en la misma vista.
+
 ## Flujo de trabajo Git
 
 Cada pregunta se desarrolla en su propia rama creada desde `main` actualizado y se integra mediante Pull Request.
@@ -67,3 +79,4 @@ Cada pregunta se desarrolla en su propia rama creada desde `main` actualizado y 
 | Pregunta | Rama |
 |---|---|
 | 1. Bootstrap + modelo de datos | `feature/bootstrap-dominio` |
+| 2. Catálogo de solicitudes y filtros | `feature/catalogo-solicitudes` |
