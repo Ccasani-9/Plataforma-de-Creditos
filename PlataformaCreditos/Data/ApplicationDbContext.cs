@@ -53,7 +53,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(s => s.MontoSolicitado).HasConversion<double>();
             entity.Property(s => s.Estado)
                 .HasConversion<string>()
-                .HasMaxLength(20);
+                .HasMaxLength(20)
+                // Concurrencia optimista: UPDATE ... WHERE Estado = <valor leído>. Evita que dos
+                // analistas procesen la misma solicitud.
+                .IsConcurrencyToken();
             entity.Property(s => s.MotivoRechazo).HasMaxLength(ReglasCredito.LongitudMaximaMotivo);
 
             // Un cliente solo puede tener UNA solicitud Pendiente (índice único filtrado).

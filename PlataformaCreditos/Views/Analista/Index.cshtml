@@ -1,0 +1,78 @@
+@model IReadOnlyList<SolicitudPendienteViewModel>
+@{
+    ViewData["Title"] = "Panel de Analista";
+}
+
+<h1 class="h3 mb-3">Panel de Analista — solicitudes pendientes</h1>
+
+@if (TempData["Exito"] is string exito)
+{
+    <div class="alert alert-success" role="status">@exito</div>
+}
+@if (TempData["Error"] is string error)
+{
+    <div class="alert alert-danger" role="alert">@error</div>
+}
+
+@if (Model.Count == 0)
+{
+    <div class="alert alert-secondary">No hay solicitudes pendientes.</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Cliente</th>
+                    <th class="text-end">Ingresos</th>
+                    <th class="text-end">Monto</th>
+                    <th class="text-end">Relación</th>
+                    <th>Fecha</th>
+                    <th style="min-width: 22rem">Evaluación</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var s in Model)
+                {
+                    <tr>
+                        <td>@s.Id</td>
+                        <td>
+                            @s.EmailCliente
+                            @if (!s.ClienteActivo)
+                            {
+                                <span class="badge text-bg-secondary">Inactivo</span>
+                            }
+                        </td>
+                        <td class="text-end">@Formato.Soles(s.IngresosMensuales)</td>
+                        <td class="text-end">@Formato.Soles(s.MontoSolicitado)</td>
+                        <td class="text-end">
+                            @s.Relacion.ToString("0.##")x
+                            @if (s.ExcedeLimiteAprobacion)
+                            {
+                                <div><span class="badge text-bg-danger" title="Máximo aprobable: @Formato.Soles(s.MontoMaximoAprobable)">Excede @ReglasCredito.MultiploMaximoAprobacion x</span></div>
+                            }
+                        </td>
+                        <td>@Formato.Fecha(s.FechaSolicitud)</td>
+                        <td>
+                            <div class="d-flex gap-2 align-items-start">
+                                <form asp-action="Aprobar" asp-route-id="@s.Id" method="post">
+                                    <button type="submit" class="btn btn-sm btn-success">Aprobar</button>
+                                </form>
+                                <form asp-action="Rechazar" asp-route-id="@s.Id" method="post" class="d-flex gap-2 flex-grow-1">
+                                    <input name="motivoRechazo" class="form-control form-control-sm" placeholder="Motivo de rechazo (obligatorio)"
+                                           maxlength="@ReglasCredito.LongitudMaximaMotivo" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Rechazar</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <p class="text-muted small">
+        Regla: no se aprueban montos mayores a @ReglasCredito.MultiploMaximoAprobacion veces los ingresos mensuales. Todas las validaciones se aplican en el servidor.
+    </p>
+}
