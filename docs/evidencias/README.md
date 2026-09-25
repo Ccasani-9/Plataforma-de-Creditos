@@ -11,4 +11,6 @@ Capturas que acompañan las pruebas descritas en el README principal (tomadas el
 | `p7-cola-pendiente.png` | 7 | CloudAMQP: `solicitudes.notificaciones` con **1 mensaje Ready** (consumidor desactivado) |
 | `p7-cola-vacia.png` | 7 | CloudAMQP: cola en **0** tras reactivar el consumidor |
 | `p7-mis-notificaciones.png` | 7 | "Mis notificaciones" con **una sola** notificación |
-| `p7-reenvio-sin-duplicado.png` | 7 | Reenvío del mismo `MessageId`: log "ya procesado" y sin notificación duplicada |
+| `p7-reenvio-confirmado.png` | 7 | Reenvío manual del mismo `MessageId` confirmado por el broker |
+| `p7-reenvio-sin-duplicado.png` | 7 | Tras el reenvío sigue habiendo **una** notificación (sin duplicado) |
+| `p7-log-consumidor.txt` | 7 | Extracto de logs: publicación confirmada, ACK tras guardar y "ya fue procesado" en el reenvío |

@@ -1,0 +1,14 @@
+# Extracto de logs de la prueba de la Pregunta 7 (app local conectada a CloudAMQP por AMQPS)
+# Fecha: 2026-09-25. Sin credenciales.
+
+## Paso 1: RabbitMq__ConsumerEnabled=false + registro de solicitud (cliente2)
+Consumidor de solicitudes.notificaciones DESACTIVADO (RabbitMq__ConsumerEnabled=false): los mensajes quedarán en la cola
+Conectado a RabbitMQ leopard.lmq.cloudamqp.com (AMQPS/TLS)
+Publicado SolicitudRegistrada 4099f267-2ab9-46a3-9c4d-6588928d3bc8 (solicitud 3) en solicitudes.notificaciones: confirmado por el broker
+
+## Paso 2: RabbitMq__ConsumerEnabled=true (la cola se vacía) + reenvío del mismo MessageId
+Conectado a RabbitMQ leopard.lmq.cloudamqp.com (AMQPS/TLS)
+Consumidor escuchando solicitudes.notificaciones (ACK manual, prefetch 1, tag amq.ctag-A9kh2OI8NXTB0uRwWlvoMFGZczi57-fI)
+Notificación guardada y ACK enviado: MessageId=4099f267-2ab9-46a3-9c4d-6588928d3bc8 solicitud 3
+MessageId=4099f267-2ab9-46a3-9c4d-6588928d3bc8 ya fue procesado: ACK sin insertar (sin duplicados)
+Publicado SolicitudRegistrada 4099f267-2ab9-46a3-9c4d-6588928d3bc8 (solicitud 3) en solicitudes.notificaciones: confirmado por el broker
