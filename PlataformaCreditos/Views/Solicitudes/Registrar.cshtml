@@ -1,0 +1,73 @@
+@model RegistrarSolicitudViewModel
+@{
+    ViewData["Title"] = "Nueva solicitud";
+}
+
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <h1 class="h3 mb-3">Nueva solicitud de crédito</h1>
+
+        @if (TempData["Exito"] is string exitoPerfil)
+        {
+            <div class="alert alert-success">@exitoPerfil</div>
+        }
+
+        @if (Model.MensajeExito is not null)
+        {
+            <div class="alert alert-success d-flex justify-content-between align-items-center" role="status">
+                <span>@Model.MensajeExito</span>
+                <a asp-action="Detalle" asp-route-id="@Model.SolicitudCreadaId" class="btn btn-sm btn-success">Ver solicitud</a>
+            </div>
+        }
+
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+        @if (Model.Cliente is null)
+        {
+            <div class="alert alert-warning">
+                Tu usuario no tiene un perfil de cliente.
+                <a asp-action="Perfil" class="alert-link">Crear perfil de cliente</a>
+            </div>
+        }
+        else
+        {
+            <div class="card mb-3">
+                <div class="card-body">
+                    <dl class="row mb-0 small">
+                        <dt class="col-sm-5">Ingresos mensuales</dt>
+                        <dd class="col-sm-7">@Formato.Soles(Model.Cliente.IngresosMensuales)</dd>
+                        <dt class="col-sm-5">Monto máximo solicitable (@ReglasCredito.MultiploMaximoRegistro x)</dt>
+                        <dd class="col-sm-7">@Formato.Soles(Model.Cliente.MontoMaximoRegistrable)</dd>
+                        <dt class="col-sm-5">Estado del cliente</dt>
+                        <dd class="col-sm-7">@(Model.Cliente.Activo ? "Activo" : "Inactivo")</dd>
+                    </dl>
+                </div>
+            </div>
+
+            @if (!Model.Cliente.Activo)
+            {
+                <div class="alert alert-warning">Tu perfil de cliente está inactivo; no puedes registrar solicitudes.</div>
+            }
+            else if (Model.TienePendiente)
+            {
+                <div class="alert alert-info">Ya tienes una solicitud Pendiente. Podrás registrar otra cuando sea evaluada.</div>
+            }
+        }
+
+        <form asp-action="Registrar" method="post" class="card card-body">
+            <div class="mb-3">
+                <label asp-for="MontoSolicitado" class="form-label"></label>
+                <input asp-for="MontoSolicitado" type="number" step="0.01" min="0.01" class="form-control" />
+                <span asp-validation-for="MontoSolicitado" class="text-danger small"></span>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Registrar solicitud</button>
+                <a asp-action="Index" class="btn btn-outline-secondary">Mis solicitudes</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

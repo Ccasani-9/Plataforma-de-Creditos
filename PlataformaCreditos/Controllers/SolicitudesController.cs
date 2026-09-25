@@ -43,4 +43,80 @@ public class SolicitudesController(SolicitudesService solicitudes) : Controller
 
         return View(solicitud);
     }
+
+    // GET /Solicitudes/Registrar
+    [HttpGet]
+    public async Task<IActionResult> Registrar()
+    {
+        var modelo = new RegistrarSolicitudViewModel();
+        await CargarContextoAsync(modelo);
+        return View(modelo);
+    }
+
+    // POST /Solicitudes/Registrar
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Registrar(RegistrarSolicitudViewModel modelo)
+    {
+        if (ModelState.IsValid)
+        {
+            var resultado = await solicitudes.RegistrarAsync(UsuarioId, modelo.MontoSolicitado!.Value);
+            if (resultado.Exito)
+            {
+                // Feedback en la misma vista: se limpia el formulario y se muestra el mensaje de éxito.
+                ModelState.Clear();
+                modelo = new RegistrarSolicitudViewModel
+                {
+                    MensajeExito = resultado.Mensaje,
+                    SolicitudCreadaId = resultado.Solicitud!.Id
+                };
+            }
+            else
+            {
+                ModelState.AddModelError(string.Empty, resultado.Mensaje);
+            }
+        }
+
+        await CargarContextoAsync(modelo);
+        return View(modelo);
+    }
+
+    // GET /Solicitudes/Perfil
+    [HttpGet]
+    public async Task<IActionResult> Perfil()
+    {
+        if (await solicitudes.ObtenerClienteAsync(UsuarioId) is not null)
+        {
+            return RedirectToAction(nameof(Registrar));
+        }
+
+        return View(new PerfilClienteViewModel());
+    }
+
+    // POST /Solicitudes/Perfil
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Perfil(PerfilClienteViewModel modelo)
+    {
+        if (!ModelState.IsValid)
+        {
+            return View(modelo);
+        }
+
+        var resultado = await solicitudes.CrearPerfilAsync(UsuarioId, modelo.IngresosMensuales!.Value);
+        if (!resultado.Exito)
+        {
+            ModelState.AddModelError(string.Empty, resultado.Mensaje);
+            return View(modelo);
+        }
+
+        TempData["Exito"] = resultado.Mensaje;
+        return RedirectToAction(nameof(Registrar));
+    }
+
+    private async Task CargarContextoAsync(RegistrarSolicitudViewModel modelo)
+    {
+        modelo.Cliente = await solicitudes.ObtenerClienteAsync(UsuarioId);
+        modelo.TienePendiente = modelo.Cliente is not null && await solicitudes.TienePendienteAsync(modelo.Cliente.Id);
+    }
 }

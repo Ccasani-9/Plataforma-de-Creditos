@@ -72,6 +72,26 @@ Contraseña de todos los usuarios demo: **`Demo123!`**
   - fecha inicio > fecha fin → error.
   - Si los filtros son inválidos no se aplican y se muestran los mensajes en la misma vista.
 
+### Registro de solicitudes (Pregunta 3)
+
+- `GET/POST /Solicitudes/Registrar` — formulario que crea una `SolicitudCredito` en estado **Pendiente**.
+- Validaciones **en el servidor** (`SolicitudesService.RegistrarAsync`), con el usuario tomado de la sesión autenticada (nunca del formulario):
+  1. Usuario autenticado (`[Authorize]` + `[ValidateAntiForgeryToken]`).
+  2. El cliente existe y está **activo**.
+  3. No existe otra solicitud **Pendiente** del cliente (además, índice único filtrado en BD para envíos simultáneos).
+  4. `MontoSolicitado > 0` y `MontoSolicitado ≤ 10 × IngresosMensuales`.
+- Feedback de éxito o error **en la misma vista** (el formulario se limpia tras un registro exitoso).
+- `GET/POST /Solicitudes/Perfil` — un usuario recién registrado declara sus ingresos para crear su perfil de cliente.
+
+Casos de prueba rápidos (contraseña `Demo123!`):
+
+| Usuario | Acción | Resultado esperado |
+|---|---|---|
+| `cliente1` | Registrar cualquier monto | Error: ya tiene una solicitud Pendiente |
+| `cliente3` | Registrar cualquier monto | Error: cliente inactivo |
+| `cliente2` | Registrar 50 001 | Error: supera 10 × 5 000 |
+| `cliente2` | Registrar 50 000 | Éxito, queda Pendiente |
+
 ## Flujo de trabajo Git
 
 Cada pregunta se desarrolla en su propia rama creada desde `main` actualizado y se integra mediante Pull Request.
@@ -80,3 +100,4 @@ Cada pregunta se desarrolla en su propia rama creada desde `main` actualizado y 
 |---|---|
 | 1. Bootstrap + modelo de datos | `feature/bootstrap-dominio` |
 | 2. Catálogo de solicitudes y filtros | `feature/catalogo-solicitudes` |
+| 3. Registro y validaciones de solicitud | `feature/solicitudes` |
