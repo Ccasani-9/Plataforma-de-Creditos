@@ -2,7 +2,9 @@
 
 Plataforma web interna para gestionar solicitudes de crédito — Examen Parcial 2026-1.
 
-**URL en Render:** _pendiente de publicar_
+**URL en Render:** https://plataforma-creditos-id19.onrender.com
+
+> Plan Free: si el servicio estuvo inactivo, la primera carga puede tardar ~50 s mientras despierta.
 
 **Stack:** ASP.NET Core MVC (.NET 10) + Identity · EF Core + SQLite · Razor Views · Redis (sesión y caché) · WebSocket (SignalR) · Cloud MQ (RabbitMQ en CloudAMQP)
 
@@ -294,6 +296,23 @@ Render termina TLS en su proxy. `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` (en e
 - **Para conservar SQLite** entre despliegues y reinicios: plan `starter` + disco persistente montado en `/var/data` (bloque `disk` comentado en `render.yaml`). Como `ConnectionStrings__DefaultConnection` apunta a `/var/data/plataforma-creditos.db`, el archivo queda en el disco y sobrevive a despliegues y reinicios.
 - Se ejecuta **una sola instancia** (`numInstances: 1`): SQLite es un archivo local y el consumidor de RabbitMQ corre como `BackgroundService` dentro del mismo proceso.
 - En el plan Free el servicio se suspende tras ~15 min sin tráfico; al despertar, el consumidor procesa los mensajes que quedaron en la cola durable.
+
+### Verificación online
+
+Realizada sobre `https://plataforma-creditos-id19.onrender.com`:
+
+| Verificación | Resultado |
+|---|---|
+| `/healthz` | `Healthy` |
+| Login (cliente1, cliente2, analista) | OK |
+| Caché Redis | 1.ª visita *base de datos* → 2.ª *caché (60 s)* |
+| Sesión Redis | Enlace "Ver última solicitud S/ 20,000.00" en el layout |
+| Validaciones | Rechaza monto > 10 × ingresos |
+| Registro + publicación en CloudAMQP (AMQPS) | Confirmado por el broker; sin aviso de error |
+| Consumo de la cola | 1 notificación en *Mis notificaciones* |
+| Panel Analista | Cliente sin rol → *Acceso denegado* |
+| WebSocket seguro `wss://…/hubs/solicitudes` | cliente1 recibe `SolicitudEstadoActualizado` al aprobar; cliente2 no recibe nada |
+| Conexión anónima al Hub | `401` (upgrade WebSocket y `negotiate`) |
 
 ### Probar la imagen en local
 
