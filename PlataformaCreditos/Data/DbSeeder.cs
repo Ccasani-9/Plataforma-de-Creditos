@@ -19,6 +19,19 @@ public static class DbSeeder
     public const string EmailCliente2 = "cliente2@creditos.pe";
     public const string EmailClienteInactivo = "cliente3@creditos.pe";
 
+    /// <summary>
+    /// Ids fijos para los usuarios demo. En Render Free SQLite se recrea en cada reinicio; como las
+    /// llaves de Data Protection viven en Redis, la cookie de login sigue siendo válida y apunta al
+    /// mismo Id. Con Ids aleatorios, esa cookie quedaría asociada a un usuario inexistente.
+    /// </summary>
+    private static readonly Dictionary<string, string> IdsDemo = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [EmailAnalista] = "3b1f0c2a-0000-4000-8000-000000000001",
+        [EmailCliente1] = "3b1f0c2a-0000-4000-8000-000000000002",
+        [EmailCliente2] = "3b1f0c2a-0000-4000-8000-000000000003",
+        [EmailClienteInactivo] = "3b1f0c2a-0000-4000-8000-000000000004"
+    };
+
     public static async Task InicializarAsync(IServiceProvider services)
     {
         using var scope = services.CreateScope();
@@ -97,7 +110,7 @@ public static class DbSeeder
             return usuario;
         }
 
-        usuario = new IdentityUser { UserName = email, Email = email, EmailConfirmed = true };
+        usuario = new IdentityUser { Id = IdsDemo[email], UserName = email, Email = email, EmailConfirmed = true };
         var resultado = await userManager.CreateAsync(usuario, PasswordDemo);
         if (!resultado.Succeeded)
         {

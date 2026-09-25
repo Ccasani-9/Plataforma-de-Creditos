@@ -336,7 +336,7 @@ Render termina TLS en su proxy. `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` (en e
 ### Persistencia de SQLite
 
 - Las migraciones se aplican y los datos iniciales se siembran **al arrancar** (idempotente).
-- **Plan Free (configuración actual):** el sistema de archivos es efímero, así que en cada despliegue o reinicio SQLite se recrea y se vuelve a sembrar con los usuarios demo. Las sesiones y el login **no** se pierden porque las llaves de Data Protection están en Redis.
+- **Plan Free (configuración actual):** el sistema de archivos es efímero, así que en cada despliegue o reinicio (incluido el despertar tras ~15 min de inactividad) SQLite se recrea y se vuelve a sembrar con los usuarios demo. Las sesiones y el login **no** se pierden porque las llaves de Data Protection están en Redis, y los usuarios demo se crean con **Ids fijos**, así que una cookie emitida antes del reinicio sigue apuntando al mismo usuario.
 - **Para conservar SQLite** entre despliegues y reinicios: plan `starter` + disco persistente montado en `/var/data` (bloque `disk` comentado en `render.yaml`). Como `ConnectionStrings__DefaultConnection` apunta a `/var/data/plataforma-creditos.db`, el archivo queda en el disco y sobrevive a despliegues y reinicios.
 - Se ejecuta **una sola instancia** (`numInstances: 1`): SQLite es un archivo local y el consumidor de RabbitMQ corre como `BackgroundService` dentro del mismo proceso.
 - En el plan Free el servicio se suspende tras ~15 min sin tráfico; al despertar, el consumidor procesa los mensajes que quedaron en la cola durable.
