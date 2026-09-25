@@ -11,7 +11,7 @@ public record ResultadoRegistro(bool Exito, string Mensaje, SolicitudCredito? So
     public static ResultadoRegistro Error(string mensaje) => new(false, mensaje);
 }
 
-public class SolicitudesService(ApplicationDbContext db, ILogger<SolicitudesService> logger)
+public class SolicitudesService(ApplicationDbContext db, SolicitudesCache cache, ILogger<SolicitudesService> logger)
 {
     public Task<Cliente?> ObtenerClienteAsync(string usuarioId) =>
         db.Clientes.AsNoTracking().FirstOrDefaultAsync(c => c.UsuarioId == usuarioId);
@@ -19,8 +19,24 @@ public class SolicitudesService(ApplicationDbContext db, ILogger<SolicitudesServ
     public Task<bool> TienePendienteAsync(int clienteId) =>
         db.SolicitudesCredito.AnyAsync(s => s.ClienteId == clienteId && s.Estado == EstadoSolicitud.Pendiente);
 
-    /// <summary>Todas las solicitudes del usuario, más recientes primero.</summary>
-    public async Task<IReadOnlyList<SolicitudResumen>> ObtenerMisSolicitudesAsync(string usuarioId)
+    /// <summary>
+    /// Todas las solicitudes del usuario, más recientes primero. Se sirven desde Redis
+    /// durante 60 segundos; los filtros se aplican sobre la lista cacheada.
+    /// </summary>
+    public async Task<(IReadOnlyList<SolicitudResumen> Solicitudes, bool DesdeCache)> ObtenerMisSolicitudesAsync(string usuarioId)
+    {
+        var cacheadas = await cache.ObtenerAsync(usuarioId);
+        if (cacheadas is not null)
+        {
+            return (cacheadas, true);
+        }
+
+        var solicitudes = await ConsultarMisSolicitudesAsync(usuarioId);
+        await cache.GuardarAsync(usuarioId, solicitudes);
+        return (solicitudes, false);
+    }
+
+    private async Task<IReadOnlyList<SolicitudResumen>> ConsultarMisSolicitudesAsync(string usuarioId)
     {
         return await db.SolicitudesCredito
             .AsNoTracking()
@@ -94,6 +110,7 @@ public class SolicitudesService(ApplicationDbContext db, ILogger<SolicitudesServ
         }
 
         logger.LogInformation("Solicitud {SolicitudId} registrada por {UsuarioId} por {Monto}", solicitud.Id, usuarioId, montoSolicitado);
+        await cache.InvalidarAsync(usuarioId);
         return new ResultadoRegistro(true, $"Solicitud #{solicitud.Id} registrada correctamente por {Formato.Soles(montoSolicitado)}. Estado: Pendiente.", solicitud);
     }
 

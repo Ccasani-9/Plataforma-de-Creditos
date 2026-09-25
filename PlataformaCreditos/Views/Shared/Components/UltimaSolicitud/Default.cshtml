@@ -1,0 +1,7 @@
+@model UltimaSolicitudVisitada
+<li class="nav-item">
+    <a class="nav-link text-primary" asp-area="" asp-controller="Solicitudes" asp-action="Detalle" asp-route-id="@Model.SolicitudId"
+       title="Guardado en la sesión (Redis)">
+        Ver última solicitud @Formato.Soles(Model.Monto)
+    </a>
+</li>

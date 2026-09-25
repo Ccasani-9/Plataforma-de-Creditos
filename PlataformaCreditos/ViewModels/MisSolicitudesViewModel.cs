@@ -9,4 +9,6 @@ public class MisSolicitudesViewModel
     public int TotalSinFiltrar { get; set; }
 
     public bool TienePerfilCliente { get; set; }
+
+    public bool DesdeCache { get; set; }
 }
