@@ -1,4 +1,5 @@
 @model MisSolicitudesViewModel
+@inject EstadoRedis EstadoRedis
 @{
     ViewData["Title"] = "Mis solicitudes";
     var estados = Enum.GetValues<EstadoSolicitud>()
@@ -54,6 +55,9 @@
 
 <p class="text-muted small mb-2">
     Mostrando @Model.Solicitudes.Count de @Model.TotalSinFiltrar solicitud(es).
+    <span class="badge @(Model.DesdeCache ? "text-bg-info" : "text-bg-light border")" title="@EstadoRedis.Descripcion">
+        Fuente: @(Model.DesdeCache ? "caché (60 s)" : "base de datos")
+    </span>
 </p>
 
 @if (Model.Solicitudes.Count == 0)

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Globalization;
 using Microsoft.AspNetCore.Localization;
 using PlataformaCreditos.Data;
+using PlataformaCreditos.Infrastructure;
 using PlataformaCreditos.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,6 +19,18 @@ builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.Requ
     .AddEntityFrameworkStores<ApplicationDbContext>();
 builder.Services.AddControllersWithViews();
 
+// Redis: caché distribuida (listado de solicitudes), sesión y llaves de Data Protection.
+builder.Services.AddRedisInfraestructura(builder.Configuration, builder.Environment);
+builder.Services.AddSession(options =>
+{
+    options.IdleTimeout = TimeSpan.FromMinutes(30);
+    options.Cookie.Name = ".PlataformaCreditos.Session";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+});
+
+builder.Services.AddScoped<SolicitudesCache>();
 builder.Services.AddScoped<SolicitudesService>();
 
 var app = builder.Build();
@@ -51,6 +64,7 @@ app.UseRouting();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseSession();
 
 app.MapStaticAssets();
 

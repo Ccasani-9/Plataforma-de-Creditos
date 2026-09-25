@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PlataformaCreditos.Infrastructure;
 using PlataformaCreditos.Services;
 using PlataformaCreditos.ViewModels;
 
@@ -16,7 +17,7 @@ public class SolicitudesController(SolicitudesService solicitudes) : Controller
     public async Task<IActionResult> Index([FromQuery] FiltroSolicitudesViewModel filtro)
     {
         var cliente = await solicitudes.ObtenerClienteAsync(UsuarioId);
-        var todas = await solicitudes.ObtenerMisSolicitudesAsync(UsuarioId);
+        var (todas, desdeCache) = await solicitudes.ObtenerMisSolicitudesAsync(UsuarioId);
 
         // Validación server-side: si los filtros son inválidos no se aplican y se muestran los errores.
         var visibles = ModelState.IsValid ? filtro.Aplicar(todas).ToList() : todas.ToList();
@@ -26,7 +27,8 @@ public class SolicitudesController(SolicitudesService solicitudes) : Controller
             Filtro = filtro,
             Solicitudes = visibles,
             TotalSinFiltrar = todas.Count,
-            TienePerfilCliente = cliente is not null
+            TienePerfilCliente = cliente is not null,
+            DesdeCache = desdeCache
         });
     }
 
@@ -40,6 +42,10 @@ public class SolicitudesController(SolicitudesService solicitudes) : Controller
             // No se distingue entre "no existe" y "es de otro usuario" para no filtrar información.
             return NotFound();
         }
+
+        // Sesión (Redis): recordar la última solicitud visitada para el enlace del layout.
+        UltimaSolicitudSesion.Guardar(HttpContext.Session,
+            new UltimaSolicitudVisitada(UsuarioId, solicitud.Id, solicitud.MontoSolicitado));
 
         return View(solicitud);
     }
