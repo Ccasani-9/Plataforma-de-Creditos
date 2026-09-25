@@ -1,0 +1,37 @@
+# Blueprint de Render: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: plataforma-creditos
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # Comando de inicio: expande PORT y lo asigna a ASPNETCORE_URLS antes de arrancar.
+    dockerCommand: sh -c 'export ASPNETCORE_URLS="http://0.0.0.0:${PORT}" && exec dotnet PlataformaCreditos.dll'
+    plan: free
+    # Una sola instancia: SQLite local + consumidor RabbitMQ (BackgroundService) dentro del mismo proceso.
+    numInstances: 1
+    branch: main
+    autoDeploy: true
+    healthCheckPath: /healthz
+    # El plan free NO admite discos: SQLite se recrea (y se vuelve a sembrar) en cada despliegue o reinicio.
+    # Para conservar SQLite, cambiar a "plan: starter" y descomentar el disco:
+    # disk:
+    #   name: sqlite-data
+    #   mountPath: /var/data
+    #   sizeGB: 1
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      # Solo referencia: el comando de inicio sobrescribe este valor con el PORT real.
+      - key: ASPNETCORE_URLS
+        value: http://0.0.0.0:${PORT}
+      - key: ConnectionStrings__DefaultConnection
+        value: Data Source=/var/data/plataforma-creditos.db
+      - key: Redis__ConnectionString
+        sync: false
+      - key: RabbitMq__ConnectionString
+        sync: false
+      - key: RabbitMq__QueueName
+        value: solicitudes.notificaciones
+      - key: RabbitMq__ConsumerEnabled
+        value: "true"
