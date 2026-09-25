@@ -35,6 +35,7 @@ builder.Services.AddHealthChecks()
 
 builder.Services.AddScoped<SolicitudesCache>();
 builder.Services.AddScoped<SolicitudesService>();
+builder.Services.AddScoped<EvaluacionService>();
 
 var app = builder.Build();
 

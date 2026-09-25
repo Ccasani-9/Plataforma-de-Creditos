@@ -110,6 +110,26 @@ Casos de prueba rápidos (contraseña `Demo123!`):
 
 Comprobar en Redis: `docker exec pc-redis redis-cli --scan` → `PlataformaCreditos:solicitudes:usuario:<id>`, `PlataformaCreditos:<id-sesion>`, `PlataformaCreditos:DataProtection-Keys`.
 
+### Panel de Analista (Pregunta 5)
+
+- Rol **Analista** creado por el seeder; usuario `analista@creditos.pe` / `Demo123!`.
+- `GET /Analista` con `[Authorize(Roles = "Analista")]`: lista las solicitudes **Pendientes** con cliente, ingresos, monto y relación monto/ingresos (marca las que exceden 5×).
+- `POST /Analista/Aprobar/{id}` y `POST /Analista/Rechazar/{id}` (con antiforgery).
+- Validaciones en el servidor (`EvaluacionService` + dominio + BD):
+  - no aprobar si el monto excede 5 × ingresos (`SolicitudCredito.Aprobar()` y trigger SQLite);
+  - no procesar solicitudes ya aprobadas o rechazadas (regla de dominio + **concurrencia optimista** sobre `Estado`, para que dos analistas no procesen la misma solicitud);
+  - motivo obligatorio (máx. 500 caracteres) al rechazar;
+  - usuarios sin el rol → **Acceso denegado** (`/Identity/Account/AccessDenied`); anónimos → login.
+- Tras cada cambio de estado se **invalida la caché Redis** del cliente propietario.
+
+| Prueba | Resultado |
+|---|---|
+| `cliente1` entra a `/Analista` | Acceso denegado |
+| Analista aprueba 30 000 con ingresos de 5 000 | Error: supera 5× |
+| Analista rechaza sin motivo | Error: motivo obligatorio |
+| Analista rechaza una solicitud ya rechazada | Error: ya fue procesada |
+| Analista aprueba 12 000 con ingresos de 3 000 | Éxito; el listado del cliente refleja el cambio de inmediato (caché invalidada) |
+
 ## Variables de entorno
 
 | Variable | Valor en Render | Descripción |
@@ -173,4 +193,5 @@ Cada pregunta se desarrolla en su propia rama creada desde `main` actualizado y 
 | 2. Catálogo de solicitudes y filtros | `feature/catalogo-solicitudes` |
 | 3. Registro y validaciones de solicitud | `feature/solicitudes` |
 | 4. Sesiones y Redis | `feature/sesion-redis` |
+| 5. Panel de Analista (rol) | `feature/panel-analista` |
 | 8. Despliegue en Render | `deploy/render` |
