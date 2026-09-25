@@ -107,7 +107,8 @@ Casos de prueba rápidos (contraseña `Demo123!`):
 | **Invalidación** | Al **registrar** una solicitud (`SolicitudesService.RegistrarAsync`) y al **cambiar su estado** (panel Analista). |
 | **Data Protection** | Las llaves se guardan en Redis (`PlataformaCreditos:DataProtection-Keys`) para que las cookies de login y sesión sigan siendo válidas tras un reinicio o redespliegue. |
 
-- `Redis:ConnectionString` acepta el formato de StackExchange (`host:puerto,password=...,ssl=True`) o el URI de Redis Cloud (`redis://default:<clave>@host:puerto`, `rediss://` para TLS).
+- `Redis:ConnectionString` acepta el formato de StackExchange (`host:puerto,password=...,ssl=True`) o el URI de Redis Cloud (`redis://default:<clave>@host:puerto`, `rediss://` para TLS). Si se pega el comando completo de la consola (`redis-cli -u redis://...`) también se interpreta correctamente.
+- Fuera de Development, si no se puede conectar a Redis al iniciar, la app **falla de inmediato con un mensaje claro** (sin mostrar la contraseña) en lugar de quedar bloqueada en cada request.
 - En **Development** sin Redis configurado se usa caché en memoria; en **Production** la variable es obligatoria.
 - Si Redis falla temporalmente, se registra el error y la consulta se resuelve contra la base de datos.
 

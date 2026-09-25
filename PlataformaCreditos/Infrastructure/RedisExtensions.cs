@@ -1,11 +1,14 @@
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.DataProtection;
 using StackExchange.Redis;
 
 namespace PlataformaCreditos.Infrastructure;
 
-public static class RedisExtensions
+public static partial class RedisExtensions
 {
     public const string InstanceName = "PlataformaCreditos:";
+
+    private const string FormatoEsperado = "redis://default:<clave>@<host>:<puerto>";
 
     /// <summary>
     /// Registra IDistributedCache (Redis) para Session y Cache, y guarda en Redis las llaves de
@@ -29,8 +32,20 @@ public static class RedisExtensions
 
         var options = ConvertirOpciones(connectionString);
         options.AbortOnConnectFail = false;
+        options.ConnectTimeout = 10000;
         options.ClientName = "PlataformaCreditos";
+        var servidor = string.Join(", ", options.EndPoints);
         var multiplexer = ConnectionMultiplexer.Connect(options);
+
+        // Sin Redis la sesión y las cookies (Data Protection) quedan bloqueadas en cada request:
+        // fuera de Development es preferible fallar al iniciar con un mensaje claro (sin exponer la clave).
+        if (!multiplexer.IsConnected && !env.IsDevelopment())
+        {
+            multiplexer.Dispose();
+            throw new InvalidOperationException(
+                $"No se pudo conectar a Redis en {servidor}. Revisa Redis__ConnectionString (formato {FormatoEsperado}), " +
+                "la contraseña y que la base de datos esté activa.");
+        }
 
         services.AddSingleton<IConnectionMultiplexer>(multiplexer);
         services.AddStackExchangeRedisCache(o =>
@@ -41,23 +56,34 @@ public static class RedisExtensions
         services.AddDataProtection()
             .SetApplicationName("PlataformaCreditos")
             .PersistKeysToStackExchangeRedis(multiplexer, InstanceName + "DataProtection-Keys");
-        services.AddSingleton(new EstadoRedis(true, $"Redis ({string.Join(", ", options.EndPoints)})"));
+        services.AddSingleton(new EstadoRedis(true, $"Redis ({servidor})"));
         return services;
     }
 
     /// <summary>
-    /// Acepta tanto el formato de StackExchange.Redis (<c>host:puerto,password=...,ssl=true</c>)
-    /// como el URI que muestra Redis Cloud (<c>redis://usuario:clave@host:puerto</c> o <c>rediss://</c>).
+    /// Acepta el formato de StackExchange.Redis (<c>host:puerto,password=...,ssl=true</c>) y el URI que
+    /// muestra Redis Cloud (<c>redis://usuario:clave@host:puerto</c> o <c>rediss://</c>). Tolera que se
+    /// pegue el comando completo de la consola (<c>redis-cli -u redis://...</c>) y comillas alrededor.
     /// </summary>
     public static ConfigurationOptions ConvertirOpciones(string connectionString)
     {
-        if (!connectionString.StartsWith("redis://", StringComparison.OrdinalIgnoreCase) &&
-            !connectionString.StartsWith("rediss://", StringComparison.OrdinalIgnoreCase))
+        var valor = Normalizar(connectionString);
+
+        if (!valor.StartsWith("redis://", StringComparison.OrdinalIgnoreCase) &&
+            !valor.StartsWith("rediss://", StringComparison.OrdinalIgnoreCase))
         {
-            return ConfigurationOptions.Parse(connectionString);
+            if (valor.Contains(' ') || valor.Contains("://"))
+            {
+                throw new InvalidOperationException($"Redis__ConnectionString no tiene un formato válido. Usa {FormatoEsperado}.");
+            }
+            return ConfigurationOptions.Parse(valor);
         }
 
-        var uri = new Uri(connectionString);
+        if (!Uri.TryCreate(valor, UriKind.Absolute, out var uri) || string.IsNullOrEmpty(uri.Host))
+        {
+            throw new InvalidOperationException($"Redis__ConnectionString no tiene un formato válido. Usa {FormatoEsperado}.");
+        }
+
         var options = new ConfigurationOptions
         {
             Ssl = uri.Scheme.Equals("rediss", StringComparison.OrdinalIgnoreCase)
@@ -80,6 +106,17 @@ public static class RedisExtensions
 
         return options;
     }
+
+    private static string Normalizar(string valor)
+    {
+        valor = valor.Trim().Trim('"', '\'').Trim();
+        // "redis-cli -u redis://..." o "redis-cli redis://..." → "redis://..."
+        valor = PrefijoRedisCli().Replace(valor, string.Empty);
+        return valor.Trim().Trim('"', '\'').Trim();
+    }
+
+    [GeneratedRegex(@"^redis-cli\s+(?:-u\s+)?", RegexOptions.IgnoreCase)]
+    private static partial Regex PrefijoRedisCli();
 }
 
 /// <summary>Indica qué backend respalda la caché y la sesión (se muestra como evidencia en la UI).</summary>
