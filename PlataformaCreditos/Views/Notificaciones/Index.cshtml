@@ -1,0 +1,32 @@
+@model IReadOnlyList<Notificacion>
+@{
+    ViewData["Title"] = "Mis notificaciones";
+}
+
+<h1 class="h3 mb-3">Mis notificaciones</h1>
+
+@if (Model.Count == 0)
+{
+    <div class="alert alert-secondary">
+        Aún no tienes notificaciones. Se generan de forma asíncrona (Cloud MQ) al registrar una solicitud.
+    </div>
+}
+else
+{
+    <p class="text-muted small">@Model.Count notificación(es).</p>
+    <div class="list-group">
+        @foreach (var n in Model)
+        {
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between">
+                    <strong>@n.Texto</strong>
+                    <small class="text-muted text-nowrap ms-3">@Formato.Fecha(n.FechaProcesamientoUtc)</small>
+                </div>
+                <div class="small text-muted">
+                    <a asp-controller="Solicitudes" asp-action="Detalle" asp-route-id="@n.SolicitudId">Solicitud #@n.SolicitudId</a>
+                    · MessageId <code>@n.MessageId</code>
+                </div>
+            </div>
+        }
+    </div>
+}

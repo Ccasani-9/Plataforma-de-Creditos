@@ -74,7 +74,9 @@ public class SolicitudesController(SolicitudesService solicitudes) : Controller
                 modelo = new RegistrarSolicitudViewModel
                 {
                     MensajeExito = resultado.Mensaje,
-                    SolicitudCreadaId = resultado.Solicitud!.Id
+                    SolicitudCreadaId = resultado.Solicitud!.Id,
+                    MessageId = resultado.MessageId,
+                    AdvertenciaNotificacion = resultado.AdvertenciaNotificacion
                 };
             }
             else

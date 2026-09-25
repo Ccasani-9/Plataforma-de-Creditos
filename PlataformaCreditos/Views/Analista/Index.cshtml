@@ -3,7 +3,10 @@
     ViewData["Title"] = "Panel de Analista";
 }
 
-<h1 class="h3 mb-3">Panel de Analista — solicitudes pendientes</h1>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Panel de Analista — solicitudes pendientes</h1>
+    <a asp-action="Reenviar" class="btn btn-sm btn-outline-secondary">Reenvío manual Cloud MQ</a>
+</div>
 
 @if (TempData["Exito"] is string exito)
 {

@@ -4,13 +4,16 @@ Plataforma web interna para gestionar solicitudes de crédito — Examen Parcial
 
 **URL en Render:** _pendiente de publicar_
 
-**Stack:** ASP.NET Core MVC (.NET 10) + Identity · EF Core + SQLite · Razor Views · Redis (sesión y caché) · WebSocket (SignalR)
+**Stack:** ASP.NET Core MVC (.NET 10) + Identity · EF Core + SQLite · Razor Views · Redis (sesión y caché) · WebSocket (SignalR) · Cloud MQ (RabbitMQ en CloudAMQP)
 
 ## Requisitos locales
 
 - [.NET SDK 10](https://dotnet.microsoft.com/download)
 - Herramienta EF Core: `dotnet tool install --global dotnet-ef`
 - Redis local (opcional, recomendado): `docker run -d --name pc-redis -p 6379:6379 redis:7-alpine`
+- RabbitMQ local (opcional): `docker run -d --name pc-rabbit -p 5672:5672 -p 15672:15672 rabbitmq:4-management` (panel en http://localhost:15672, `guest`/`guest`)
+
+`appsettings.Development.json` apunta a `localhost` para Redis y RabbitMQ (sin credenciales reales).
 
 ## Ejecutar en local
 
@@ -164,6 +167,84 @@ Las validaciones y la autorización del panel Analista no cambian.
 
 Verificado en local con el cliente oficial `@microsoft/signalr`: cliente1 recibió `{"solicitudId":1,"estado":"Aprobado","motivoRechazo":null}`, cliente2 no recibió nada y el anónimo fue rechazado (`negotiate` y upgrade WebSocket → 401).
 
+### Mensajería asíncrona con Cloud MQ (Pregunta 7)
+
+Productor → cola → consumidor que genera la notificación de recepción de la solicitud (RabbitMQ gestionado en **CloudAMQP**).
+
+```
+Registrar solicitud -> SaveChanges -> PublicadorSolicitudes --AMQPS + publisher confirm--> [solicitudes.notificaciones]
+                                      (solo si se guardó)                                   durable, mensajes persistentes
+                                                                                                     |
+                                                  ConsumidorNotificaciones (BackgroundService, ACK manual)
+                                                     |-- OK / ya procesado -> Notificaciones (SQLite) + ACK
+                                                     '-- inválido / falla tras 1 reintento -> [solicitudes.notificaciones.dlq]
+```
+
+| Requisito | Implementación |
+|---|---|
+| Cola durable `solicitudes.notificaciones`, conexión **AMQPS**, credenciales por variables de entorno | `RabbitMqConexion` (`RabbitMq__ConnectionString`, `RabbitMq__QueueName`). Fuera de Development un URI `amqp://` se eleva a `amqps://` (5671). Dead-letter hacia `solicitudes.notificaciones.dlq` |
+| Publicar **después** de guardar la solicitud Pendiente; nunca si falla la validación o la persistencia | `SolicitudesService.RegistrarAsync`: la publicación ocurre tras `SaveChangesAsync` |
+| Mensaje JSON **persistente** `SolicitudRegistrada` (`MessageId` UUID, `SolicitudId`, `UsuarioId`, `FechaEventoUtc`) | `Messaging/SolicitudRegistrada.cs`; `Persistent = true` (`delivery_mode=2`), `type=SolicitudRegistrada`, `message_id` = MessageId |
+| **Confirmación del publicador** | Canal con `publisherConfirmationsEnabled` + tracking y `mandatory: true`: `BasicPublishAsync` espera el ack del broker (timeout 10 s) y lanza `PublishException` si hay nack o return |
+| Falla de publicación | Se **conserva la solicitud**, se registra el error (`FALLÓ la publicación … MessageId …`) y se muestra el aviso *"la notificación no pudo encolarse"* con el MessageId para el reenvío |
+| Consumidor `BackgroundService` + `RabbitMQ.Client` | `Messaging/ConsumidorNotificaciones.cs` (prefetch 1, `autoAck: false`); se desactiva con `RabbitMq__ConsumerEnabled=false` |
+| Guardar `Notificacion` (`Id`, `MessageId`, `SolicitudId`, `UsuarioId`, `Texto`, `FechaProcesamientoUtc`) | `NotificacionesService.ProcesarAsync`; texto: *"Recibimos tu solicitud de crédito y está pendiente de evaluación"*. No aprueba ni rechaza créditos |
+| ACK manual solo después de guardar | `BasicAckAsync` tras `SaveChangesAsync` |
+| Unicidad de `MessageId` / redelivery sin duplicados | Índice **único** `IX_Notificaciones_MessageId`; si ya existe → ACK sin insertar (log *"ya fue procesado"*) |
+| Falla de procesamiento sin reintentos infinitos | No se confirma: `BasicNack` con reencolado **una sola vez** (`Redelivered = false`); si vuelve a fallar → `requeue: false` → DLQ + log |
+| Mensaje inválido | `BasicReject(requeue: false)` → DLQ + log `Mensaje INVÁLIDO …` (JSON roto, campos faltantes o solicitud inexistente/ajena) |
+| "Mis notificaciones" | `GET /Notificaciones`, filtrada por el usuario autenticado |
+
+#### Reenvío manual con el mismo MessageId
+
+No se implementa un patrón outbox. Cuando una publicación falla, o para reprocesar un mensaje de la DLQ:
+
+- **Opción A (en la app):** como Analista → *Panel Analista* → **Reenvío manual Cloud MQ** (`/Analista/Reenviar`). Ingresar el `MessageId` (aparece en el aviso, en los logs y en *Mis notificaciones*) y el número de solicitud. El `UsuarioId` se toma de la BD y el mensaje se publica con confirmación del broker.
+- **Opción B (CloudAMQP):** consola **RabbitMQ Manager** → *Queues* → `solicitudes.notificaciones` → **Publish message**:
+  - *Properties:* `message_id=<MessageId>`, `delivery_mode=2`, `content_type=application/json`, `type=SolicitudRegistrada`
+  - *Payload:* `{"MessageId":"<MessageId>","SolicitudId":<id>,"UsuarioId":"<id-usuario>","FechaEventoUtc":"2026-01-01T00:00:00Z"}`
+- **Desde la DLQ:** en `solicitudes.notificaciones.dlq` usar **Move messages** hacia `solicitudes.notificaciones` (o *Get messages* y volver a publicarlos con la opción B), después de corregir la causa.
+
+En todos los casos el consumidor es idempotente: si el `MessageId` ya se procesó, confirma sin insertar otra notificación.
+
+> Si la cola `solicitudes.notificaciones` se creó antes a mano sin los argumentos de dead-letter, RabbitMQ rechaza la declaración (`PRECONDITION_FAILED`): eliminarla en el RabbitMQ Manager y dejar que la aplicación la cree.
+
+#### Prueba y evidencias (reproducible)
+
+1. En Render → *Environment* → `RabbitMq__ConsumerEnabled=false` → **Save** (se redespliega). El log muestra *"Consumidor … DESACTIVADO"*.
+2. Iniciar sesión como un cliente sin solicitud Pendiente (p. ej. `cliente2@creditos.pe`) y **registrar una solicitud**. Aparece *"Notificación encolada… MessageId …"* (copiar el MessageId).
+3. CloudAMQP → **RabbitMQ Manager** → *Queues* → `solicitudes.notificaciones`: **Ready = 1**. En *Get messages* se ve el JSON y sus propiedades. 📸 `p7-cola-pendiente.png`
+4. Cambiar `RabbitMq__ConsumerEnabled=true` → **Save**. Tras el redespliegue: la cola vuelve a **0** 📸 `p7-cola-vacia.png` y *Mis notificaciones* muestra **una sola** notificación 📸 `p7-mis-notificaciones.png`.
+   > En el plan Free, SQLite se re-siembra en cada despliegue (ver P8), así que la solicitud del paso 2 puede no existir tras cambiar la variable. En ese caso el consumidor rechaza el mensaje como inválido (queda en la DLQ con log). Para la demostración en Free, hacer los pasos 1–4 en local (a continuación) o usar un disco persistente.
+5. Como Analista → **Reenvío manual Cloud MQ** con el **mismo MessageId** → el log muestra *"ya fue procesado: ACK sin insertar"* y *Mis notificaciones* sigue con **una** notificación. 📸 `p7-reenvio-sin-duplicado.png`
+
+**Misma prueba en local** (RabbitMQ en Docker):
+
+```bash
+# 1) Consumidor desactivado (PowerShell: $env:RabbitMq__ConsumerEnabled="false")
+RabbitMq__ConsumerEnabled=false dotnet run --project PlataformaCreditos --launch-profile http
+#    registrar una solicitud → http://localhost:15672 → Queues → solicitudes.notificaciones: Ready = 1
+# 2) Detener la app y volver a iniciarla con el consumidor activo
+dotnet run --project PlataformaCreditos --launch-profile http
+#    la cola queda en 0 y /Notificaciones muestra 1 notificación
+# 3) /Analista/Reenviar con el mismo MessageId → sigue habiendo 1 notificación
+```
+
+Resultado verificado en local:
+
+| Paso | Resultado |
+|---|---|
+| Consumidor desactivado + registro | `ready = 1`, `consumers = 0`; mensaje con `delivery_mode = 2`, `type = SolicitudRegistrada` |
+| Consumidor activado | `ready = 0`; *"Notificación guardada y ACK enviado"*; 1 notificación (otro cliente ve 0) |
+| Reenvío del mismo MessageId | *"ya fue procesado: ACK sin insertar (sin duplicados)"*; sigue habiendo 1 notificación |
+| 3 mensajes inválidos | Rechazados sin reencolar → `solicitudes.notificaciones.dlq` con `ready = 3`, cada uno con log |
+| Broker caído al registrar | Solicitud guardada (Pendiente) + aviso *"no pudo encolarse… MessageId …"* + log `FALLÓ la publicación` |
+| Reenvío de ese MessageId con el broker activo | Confirmado por el broker; aparece la notificación que faltaba |
+
+### Relación entre las prácticas
+
+WebSocket (P6) comunica al navegador conectado el **resultado de la evaluación**. Cloud MQ (P7) **desacopla el registro** de la solicitud del procesamiento de su notificación de recepción. Cada práctica se demuestra por separado y tiene su propio PR.
+
 ## Variables de entorno
 
 | Variable | Valor en Render | Descripción |
@@ -221,12 +302,13 @@ docker run -p 8080:10000 -e PORT=10000 -e Redis__ConnectionString=host.docker.in
 
 Cada pregunta se desarrolla en su propia rama creada desde `main` actualizado y se integra mediante Pull Request.
 
-| Pregunta | Rama |
-|---|---|
-| 1. Bootstrap + modelo de datos | `feature/bootstrap-dominio` |
-| 2. Catálogo de solicitudes y filtros | `feature/catalogo-solicitudes` |
-| 3. Registro y validaciones de solicitud | `feature/solicitudes` |
-| 4. Sesiones y Redis | `feature/sesion-redis` |
-| 5. Panel de Analista (rol) | `feature/panel-analista` |
-| 6. Notificaciones con WebSocket | `feature/websocket-notificaciones` |
-| 8. Despliegue en Render | `deploy/render` |
+| Pregunta | Rama | Pull Request |
+|---|---|---|
+| 1. Bootstrap + modelo de datos | `feature/bootstrap-dominio` | [#1](https://github.com/Ccasani-9/Plataforma-de-Creditos/pull/1) |
+| 2. Catálogo de solicitudes y filtros | `feature/catalogo-solicitudes` | [#2](https://github.com/Ccasani-9/Plataforma-de-Creditos/pull/2) |
+| 3. Registro y validaciones de solicitud | `feature/solicitudes` | [#3](https://github.com/Ccasani-9/Plataforma-de-Creditos/pull/3) |
+| 4. Sesiones y Redis | `feature/sesion-redis` | [#4](https://github.com/Ccasani-9/Plataforma-de-Creditos/pull/4) |
+| 5. Panel de Analista (rol) | `feature/panel-analista` | [#6](https://github.com/Ccasani-9/Plataforma-de-Creditos/pull/6) |
+| 6. Notificaciones con WebSocket | `feature/websocket-notificaciones` | [#7](https://github.com/Ccasani-9/Plataforma-de-Creditos/pull/7) |
+| 7. Mensajería asíncrona con Cloud MQ | `feature/cloudmq-notificaciones` | [#8](https://github.com/Ccasani-9/Plataforma-de-Creditos/pull/8) |
+| 8. Despliegue en Render | `deploy/render` | [#5](https://github.com/Ccasani-9/Plataforma-de-Creditos/pull/5) |
